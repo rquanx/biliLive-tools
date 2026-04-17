@@ -6,7 +6,7 @@ import { default as checkDiskSpace } from "check-disk-space";
 
 import Router from "@koa/router";
 import semver from "semver";
-import { uuid, getTempPath } from "@biliLive-tools/shared/utils/index.js";
+import { uuid, getTempPath, trashItem } from "@biliLive-tools/shared/utils/index.js";
 import { readXmlTimestamp, parseMeta } from "@biliLive-tools/shared/task/video.js";
 import { genTimeData } from "@biliLive-tools/shared/danmu/hotProgress.js";
 import { parseDanmu } from "@biliLive-tools/shared/danmu/index.js";
@@ -118,6 +118,64 @@ router.post("/fileJoin", async (ctx) => {
   }
   const filePath = path.join(dir, name);
   ctx.body = filePath;
+});
+
+router.post("/removePaths", async (ctx) => {
+  const { paths } = ctx.request.body as {
+    paths?: string[];
+  };
+
+  if (!Array.isArray(paths) || paths.length === 0) {
+    ctx.status = 400;
+    ctx.body = "paths is required";
+    return;
+  }
+
+  const uniquePaths = [...new Set(paths.filter((item) => typeof item === "string" && item.trim()))];
+  if (uniquePaths.length === 0) {
+    ctx.status = 400;
+    ctx.body = "valid paths are required";
+    return;
+  }
+
+  const success: string[] = [];
+  const failed: { path: string; reason: string }[] = [];
+
+  for (const item of uniquePaths) {
+    const targetPath = path.resolve(item);
+    try {
+      if (path.parse(targetPath).root === targetPath) {
+        throw new Error("Removing root paths is not supported");
+      }
+
+      if (!(await fs.pathExists(targetPath))) {
+        throw new Error("File does not exist");
+      }
+
+      const fileStat = await fs.stat(targetPath);
+      if (!fileStat.isFile()) {
+        throw new Error("Only files can be removed");
+      }
+
+      await trashItem(targetPath);
+
+      if (await fs.pathExists(targetPath)) {
+        throw new Error("File removal failed");
+      }
+
+      success.push(targetPath);
+    } catch (error) {
+      failed.push({
+        path: targetPath,
+        reason: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  ctx.body = {
+    success,
+    failed,
+  };
 });
 
 router.post("/danma/timestamp", async (ctx) => {

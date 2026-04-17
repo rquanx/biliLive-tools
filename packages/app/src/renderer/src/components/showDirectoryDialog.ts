@@ -1,4 +1,5 @@
-import { App, createApp } from "vue";
+import { App, createApp, defineComponent, h } from "vue";
+import { NDialogProvider, NNotificationProvider } from "naive-ui";
 import FileBrowserDialog from "./FileBrowserDialog.vue";
 
 export default async function showDirectoryDialog(
@@ -12,24 +13,41 @@ export default async function showDirectoryDialog(
 ): Promise<string[] | undefined> {
   return new Promise((resolve) => {
     const mountNode = document.createElement("div");
-    let dialogApp: App<Element> | undefined = createApp(FileBrowserDialog, {
+    const cleanup = () => {
+      if (dialogApp) {
+        dialogApp.unmount();
+        document.body.removeChild(mountNode);
+        dialogApp = undefined;
+      }
+    };
+
+    const dialogProps = {
       visible: true,
       ...options,
       close: () => {
-        if (dialogApp) {
-          dialogApp.unmount();
-          document.body.removeChild(mountNode);
-          dialogApp = undefined;
-          resolve(undefined);
-        }
+        cleanup();
+        resolve(undefined);
       },
       confirm: (path: string[]) => {
+        cleanup();
         resolve(path);
-        dialogApp?.unmount();
-        document.body.removeChild(mountNode);
-        dialogApp = undefined;
+      },
+    };
+
+    const Root = defineComponent({
+      name: "FileBrowserDialogRoot",
+      setup() {
+        return () =>
+          h(NDialogProvider, null, {
+            default: () =>
+              h(NNotificationProvider, null, {
+                default: () => h(FileBrowserDialog, dialogProps),
+              }),
+          });
       },
     });
+
+    let dialogApp: App<Element> | undefined = createApp(Root);
     document.body.appendChild(mountNode);
     dialogApp.mount(mountNode);
   });

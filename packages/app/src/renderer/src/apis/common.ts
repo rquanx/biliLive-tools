@@ -88,6 +88,18 @@ export const getFiles = async (params: {
   return res.data;
 };
 
+export const removePaths = async (
+  paths: string[],
+): Promise<{
+  success: string[];
+  failed: { path: string; reason: string }[];
+}> => {
+  const res = await request.post(`/common/removePaths`, {
+    paths,
+  });
+  return res.data;
+};
+
 const fileJoin = async (dir: string, name: string): Promise<string> => {
   const res = await request.post(`/common/fileJoin`, {
     dir,
@@ -310,6 +322,7 @@ const common = {
   parseMeta,
   getRunningTaskNum,
   fileJoin,
+  removePaths,
   readDanma,
   genTimeData,
   getVideo,
